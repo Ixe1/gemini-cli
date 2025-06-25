@@ -599,6 +599,57 @@ export const useSlashCommandProcessor = (
         },
       },
       {
+        name: 'model',
+        description: 'switch between Gemini models (pro/flash)',
+        action: async (_mainCommand, subCommand, _args) => {
+          const currentModel = config?.getModel() || 'Unknown';
+          
+          if (!subCommand) {
+            // Show current model
+            addMessage({
+              type: MessageType.INFO,
+              content: `Current model: ${currentModel}`,
+              timestamp: new Date(),
+            });
+            return;
+          }
+          
+          const modelLower = subCommand.toLowerCase();
+          let newModel: string;
+          
+          if (modelLower === 'pro') {
+            newModel = 'gemini-2.5-pro';
+          } else if (modelLower === 'flash') {
+            newModel = 'gemini-2.5-flash';
+          } else {
+            addMessage({
+              type: MessageType.ERROR,
+              content: `Invalid model: ${subCommand}. Use 'pro' or 'flash'.`,
+              timestamp: new Date(),
+            });
+            return;
+          }
+          
+          if (newModel === currentModel) {
+            addMessage({
+              type: MessageType.INFO,
+              content: `Already using ${currentModel}`,
+              timestamp: new Date(),
+            });
+            return;
+          }
+          
+          // Switch the model
+          config?.setModel(newModel);
+          
+          addMessage({
+            type: MessageType.INFO,
+            content: `Switched from ${currentModel} to ${newModel}`,
+            timestamp: new Date(),
+          });
+        },
+      },
+      {
         name: 'bug',
         description: 'submit a bug report',
         action: async (_mainCommand, _subCommand, args) => {

@@ -45,6 +45,7 @@ import { useConsolePatcher } from './components/ConsolePatcher.js';
 import { DetailedMessagesDisplay } from './components/DetailedMessagesDisplay.js';
 import { HistoryItemDisplay } from './components/HistoryItemDisplay.js';
 import { ContextSummaryDisplay } from './components/ContextSummaryDisplay.js';
+import { PlanDisplay } from './components/PlanDisplay.js';
 import { useHistory } from './hooks/useHistoryManager.js';
 import process from 'node:process';
 import {
@@ -237,21 +238,38 @@ const App = ({ config, settings, startupWarnings = [] }: AppProps) => {
       currentModel: string,
       fallbackModel: string,
     ): Promise<boolean> => {
-      // Add message to UI history
+      // Check if auto-switching is enabled
+      const autoSwitchEnabled = settings.merged.autoSwitchModel ?? false;
+      
+      if (!autoSwitchEnabled) {
+        // Notify user but don't switch
+        addItem(
+          {
+            type: MessageType.INFO,
+            text: `⚡ Rate limiting detected with ${currentModel}. Automatic model switching is disabled.
+⚡ To enable automatic switching to ${fallbackModel}, set "autoSwitchModel": true in your settings.
+⚡ You can manually switch models by typing /model flash`,
+          },
+          Date.now(),
+        );
+        return false; // Reject the fallback, continue with current model
+      }
+      
+      // Auto-switch is enabled, accept the fallback
       addItem(
         {
           type: MessageType.INFO,
-          text: `⚡ Slow response times detected. Automatically switching from ${currentModel} to ${fallbackModel} for faster responses for the remainder of this session.
-⚡ To avoid this you can utilize a Gemini API Key. See: https://goo.gle/gemini-cli-docs-auth#gemini-api-key
-⚡ You can switch authentication methods by typing /auth`,
+          text: `⚡ Rate limiting detected. Automatically switching from ${currentModel} to ${fallbackModel} for faster responses for the remainder of this session.
+⚡ To disable automatic switching, set "autoSwitchModel": false in your settings.
+⚡ You can manually switch back by typing /model pro`,
         },
         Date.now(),
       );
-      return true; // Always accept the fallback
+      return true; // Accept the fallback
     };
 
     config.setFlashFallbackHandler(flashFallbackHandler);
-  }, [config, addItem]);
+  }, [config, addItem, settings.merged.autoSwitchModel]);
 
   const {
     handleSlashCommand,
@@ -410,6 +428,9 @@ const App = ({ config, settings, startupWarnings = [] }: AppProps) => {
     initError,
     pendingHistoryItems: pendingGeminiHistoryItems,
     thought,
+    pendingPlan,
+    handlePlanAccept,
+    handlePlanDecline,
   } = useGeminiStream(
     config.getGeminiClient(),
     history,
@@ -776,7 +797,15 @@ const App = ({ config, settings, startupWarnings = [] }: AppProps) => {
                 </OverflowProvider>
               )}
 
-              {isInputActive && (
+              {pendingPlan && (
+                <PlanDisplay
+                  plan={pendingPlan.plan}
+                  onAccept={handlePlanAccept}
+                  onDecline={handlePlanDecline}
+                />
+              )}
+
+              {isInputActive && !pendingPlan && (
                 <InputPrompt
                   buffer={buffer}
                   inputWidth={inputWidth}

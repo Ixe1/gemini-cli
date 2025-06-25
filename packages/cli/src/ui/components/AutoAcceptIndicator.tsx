@@ -31,6 +31,11 @@ export const AutoAcceptIndicator: React.FC<AutoAcceptIndicatorProps> = ({
       textContent = 'YOLO mode';
       subText = ' (ctrl + y to toggle)';
       break;
+    case ApprovalMode.PLANNING:
+      textColor = Colors.AccentBlue;
+      textContent = '📋 planning mode';
+      subText = ' (shift + tab to toggle)';
+      break;
     case ApprovalMode.DEFAULT:
     default:
       break;

@@ -32,10 +32,21 @@ export function useAutoAcceptIndicator({
           ? ApprovalMode.DEFAULT
           : ApprovalMode.YOLO;
     } else if (key.tab && key.shift) {
-      nextApprovalMode =
-        config.getApprovalMode() === ApprovalMode.AUTO_EDIT
-          ? ApprovalMode.DEFAULT
-          : ApprovalMode.AUTO_EDIT;
+      // Cycle through DEFAULT → AUTO_EDIT → PLANNING → DEFAULT
+      const currentMode = config.getApprovalMode();
+      switch (currentMode) {
+        case ApprovalMode.DEFAULT:
+          nextApprovalMode = ApprovalMode.AUTO_EDIT;
+          break;
+        case ApprovalMode.AUTO_EDIT:
+          nextApprovalMode = ApprovalMode.PLANNING;
+          break;
+        case ApprovalMode.PLANNING:
+          nextApprovalMode = ApprovalMode.DEFAULT;
+          break;
+        default:
+          nextApprovalMode = ApprovalMode.DEFAULT;
+      }
     }
 
     if (nextApprovalMode) {

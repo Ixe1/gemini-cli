@@ -64,6 +64,9 @@ export interface Settings {
   // UI setting. Does not display the ANSI-controlled terminal title.
   hideWindowTitle?: boolean;
 
+  // Model switching setting. When true, automatically switches to Flash model on rate limits.
+  autoSwitchModel?: boolean;
+
   // Add other settings here.
 }
 

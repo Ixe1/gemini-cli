@@ -154,7 +154,13 @@ describe('useAutoAcceptIndicator', () => {
   });
 
   it('should toggle the indicator and update config when Shift+Tab or Ctrl+Y is pressed', () => {
-    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
+    // Set up mock to track the actual mode changes
+    let currentMode = ApprovalMode.DEFAULT;
+    mockConfigInstance.getApprovalMode.mockImplementation(() => currentMode);
+    mockConfigInstance.setApprovalMode.mockImplementation((mode) => {
+      currentMode = mode;
+    });
+
     const { result } = renderHook(() =>
       useAutoAcceptIndicator({
         config: mockConfigInstance as unknown as ActualConfigType,
@@ -162,6 +168,7 @@ describe('useAutoAcceptIndicator', () => {
     );
     expect(result.current).toBe(ApprovalMode.DEFAULT);
 
+    // Test Shift+Tab cycle: DEFAULT -> AUTO_EDIT
     act(() => {
       capturedUseInputHandler('', { tab: true, shift: true } as InkKey);
     });
@@ -170,6 +177,25 @@ describe('useAutoAcceptIndicator', () => {
     );
     expect(result.current).toBe(ApprovalMode.AUTO_EDIT);
 
+    // Test Shift+Tab cycle: AUTO_EDIT -> PLANNING
+    act(() => {
+      capturedUseInputHandler('', { tab: true, shift: true } as InkKey);
+    });
+    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
+      ApprovalMode.PLANNING,
+    );
+    expect(result.current).toBe(ApprovalMode.PLANNING);
+
+    // Test Shift+Tab cycle: PLANNING -> DEFAULT
+    act(() => {
+      capturedUseInputHandler('', { tab: true, shift: true } as InkKey);
+    });
+    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
+      ApprovalMode.DEFAULT,
+    );
+    expect(result.current).toBe(ApprovalMode.DEFAULT);
+
+    // Test Ctrl+Y toggles YOLO mode
     act(() => {
       capturedUseInputHandler('y', { ctrl: true } as InkKey);
     });
@@ -178,6 +204,7 @@ describe('useAutoAcceptIndicator', () => {
     );
     expect(result.current).toBe(ApprovalMode.YOLO);
 
+    // Test Ctrl+Y toggles back from YOLO to DEFAULT
     act(() => {
       capturedUseInputHandler('y', { ctrl: true } as InkKey);
     });
@@ -186,6 +213,7 @@ describe('useAutoAcceptIndicator', () => {
     );
     expect(result.current).toBe(ApprovalMode.DEFAULT);
 
+    // Test Ctrl+Y toggles back to YOLO
     act(() => {
       capturedUseInputHandler('y', { ctrl: true } as InkKey);
     });
@@ -194,14 +222,7 @@ describe('useAutoAcceptIndicator', () => {
     );
     expect(result.current).toBe(ApprovalMode.YOLO);
 
-    act(() => {
-      capturedUseInputHandler('', { tab: true, shift: true } as InkKey);
-    });
-    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-      ApprovalMode.AUTO_EDIT,
-    );
-    expect(result.current).toBe(ApprovalMode.AUTO_EDIT);
-
+    // Test that Shift+Tab when in YOLO mode sets it to DEFAULT (default case in switch)
     act(() => {
       capturedUseInputHandler('', { tab: true, shift: true } as InkKey);
     });

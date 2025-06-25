@@ -24,6 +24,7 @@ import {
   ThoughtSummary,
   UnauthorizedError,
   UserPromptEvent,
+  ApprovalMode,
 } from '@google/gemini-cli-core';
 import { type Part, type PartListUnion } from '@google/genai';
 import {
@@ -102,6 +103,7 @@ export const useGeminiStream = (
   const processedMemoryToolsRef = useRef<Set<string>>(new Set());
   const logger = useLogger();
   const { startNewTurn, addUsage } = useSessionStats();
+  const [pendingPlan, setPendingPlan] = useState<{ plan: string; callId: string } | null>(null);
   const gitService = useMemo(() => {
     if (!config.getProjectRoot()) {
       return;
@@ -114,6 +116,22 @@ export const useGeminiStream = (
       (completedToolCallsFromScheduler) => {
         // This onComplete is called when ALL scheduled tools for a given batch are done.
         if (completedToolCallsFromScheduler.length > 0) {
+          // Check if any of the completed tools is DeliverPlan
+          const deliverPlanTool = completedToolCallsFromScheduler.find(
+            tool => tool.request.name === 'deliver_plan' && 
+            tool.status === 'success'
+          );
+          
+          if (deliverPlanTool && deliverPlanTool.response) {
+            // Extract the plan from the tool request params
+            const params = deliverPlanTool.request.args as { plan?: string };
+            if (params.plan) {
+              setPendingPlan({ plan: params.plan, callId: deliverPlanTool.request.callId });
+              // Don't add to history yet - wait for user decision
+              return;
+            }
+          }
+          
           // Add the final state of these tools to the history for display.
           // The new useEffect will handle submitting their responses.
           addItem(
@@ -810,11 +828,52 @@ export const useGeminiStream = (
     saveRestorableToolCalls();
   }, [toolCalls, config, onDebugMessage, gitService, history, geminiClient]);
 
+  const handlePlanAccept = useCallback(() => {
+    if (!pendingPlan) return;
+    
+    // Switch to auto-accept mode
+    config.setApprovalMode(ApprovalMode.AUTO_EDIT);
+    
+    // Add info message about accepting the plan
+    addItem(
+      {
+        type: MessageType.INFO,
+        text: '✅ Plan accepted. Switching to auto-accept mode and executing the plan...',
+      },
+      Date.now(),
+    );
+    
+    // Submit the plan as a new query
+    submitQuery([{ text: pendingPlan.plan }]);
+    
+    // Clear the pending plan
+    setPendingPlan(null);
+  }, [pendingPlan, config, addItem, submitQuery]);
+
+  const handlePlanDecline = useCallback(() => {
+    if (!pendingPlan) return;
+    
+    // Add info message about declining the plan
+    addItem(
+      {
+        type: MessageType.INFO,
+        text: '❌ Plan declined. You can provide feedback or request a revised plan.',
+      },
+      Date.now(),
+    );
+    
+    // Clear the pending plan
+    setPendingPlan(null);
+  }, [pendingPlan, addItem]);
+
   return {
     streamingState,
     submitQuery,
     initError,
     pendingHistoryItems,
     thought,
+    pendingPlan,
+    handlePlanAccept,
+    handlePlanDecline,
   };
 };

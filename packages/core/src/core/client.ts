@@ -21,8 +21,9 @@ import {
   GeminiEventType,
   ChatCompressionInfo,
 } from './turn.js';
-import { Config } from '../config/config.js';
+import { Config, ApprovalMode } from '../config/config.js';
 import { getCoreSystemPrompt } from './prompts.js';
+import { getPlanningModePrompt } from './planning-prompt.js';
 import { ReadManyFilesTool } from '../tools/read-many-files.js';
 import { getResponseText } from '../utils/generateContentResponseUtilities.js';
 import { checkNextSpeaker } from '../utils/nextSpeakerChecker.js';
@@ -169,7 +170,19 @@ export class GeminiClient {
   private async startChat(extraHistory?: Content[]): Promise<GeminiChat> {
     const envParts = await this.getEnvironment();
     const toolRegistry = await this.config.getToolRegistry();
-    const toolDeclarations = toolRegistry.getFunctionDeclarations();
+    
+    // Filter tools based on approval mode
+    const approvalMode = this.config.getApprovalMode();
+    let toolDeclarations = toolRegistry.getFunctionDeclarations();
+    
+    if (approvalMode === ApprovalMode.PLANNING) {
+      // In planning mode, only allow read-only tools and deliver_plan
+      const allowedToolNames = ['ls', 'read_file', 'grep', 'glob', 'web_fetch', 'web_search', 'deliver_plan'];
+      toolDeclarations = toolDeclarations.filter(decl => 
+        decl.name && allowedToolNames.includes(decl.name)
+      );
+    }
+    
     const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
     const initialHistory: Content[] = [
       {
@@ -184,7 +197,9 @@ export class GeminiClient {
     const history = initialHistory.concat(extraHistory ?? []);
     try {
       const userMemory = this.config.getUserMemory();
-      const systemInstruction = getCoreSystemPrompt(userMemory);
+      const systemInstruction = approvalMode === ApprovalMode.PLANNING 
+        ? getPlanningModePrompt() 
+        : getCoreSystemPrompt(userMemory);
       const generateContentConfigWithThinking = isThinkingSupported(this.model)
         ? {
             ...this.generateContentConfig,
